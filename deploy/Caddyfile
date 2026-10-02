@@ -1,0 +1,45 @@
+# Reverse proxy public : seul conteneur exposé sur Internet (ports 80/443).
+# Les certificats HTTPS (Let's Encrypt) sont obtenus et renouvelés automatiquement.
+# Les domaines viennent de deploy/.env.
+
+{
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# API Laravel + WebSocket Reverb sur le même domaine : l'app Flutter se connecte
+# en wss://API_DOMAIN:443/app/<REVERB_APP_KEY> (cf. digit_app/lib/config/app_config.dart).
+{$API_DOMAIN} {
+	import security_headers
+	encode gzip
+
+	@websocket path /app/*
+	reverse_proxy @websocket reverb:8080
+
+	reverse_proxy web:80
+}
+
+# Console d'administration / espace marchand.
+{$DASHBOARD_DOMAIN} {
+	import security_headers
+	encode gzip
+
+	reverse_proxy dashboard:3000
+}
+
+# Doc API marchande sur un sous-domaine dédié (optionnel) : décommenter et
+# renseigner DOCS_DOMAIN dans deploy/.env ET dans api.env.
+# {$DOCS_DOMAIN} {
+# 	import security_headers
+# 	encode gzip
+# 	reverse_proxy web:80
+# }

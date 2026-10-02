@@ -1,0 +1,141 @@
+# Déploiement de production — voir deploy/README.md.
+# Lancement (depuis ce dossier) : docker compose up -d --build
+#
+# Seul "caddy" publie des ports (80/443). Tout le reste (MySQL, PHP, Reverb,
+# Next.js) n'est joignable que sur le réseau interne Docker.
+
+name: digit
+
+x-api-build: &api-build
+  context: ../digit-api
+  dockerfile: ../deploy/api/Dockerfile
+  additional_contexts:
+    deploy: ./api
+
+# Configuration commune aux conteneurs PHP (app, queue, scheduler, reverb, migrate).
+x-api: &api
+  image: digit-api:latest
+  build:
+    <<: *api-build
+    target: app
+  env_file: api.env
+  environment:
+    DB_CONNECTION: mysql
+    DB_HOST: db
+    DB_PORT: 3306
+    DB_DATABASE: ${DB_DATABASE}
+    DB_USERNAME: ${DB_USERNAME}
+    DB_PASSWORD: ${DB_PASSWORD}
+    # Laravel publie les événements vers Reverb sur le réseau interne (HTTP).
+    # Les clients (Flutter) passent eux par Caddy en wss://API_DOMAIN.
+    REVERB_HOST: reverb
+    REVERB_PORT: 8080
+    REVERB_SCHEME: http
+  volumes:
+    - api-storage:/var/www/storage
+  restart: unless-stopped
+
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # Exécute les migrations puis s'arrête ; les autres services PHP attendent sa réussite.
+  migrate:
+    <<: *api
+    command: ["php", "artisan", "migrate", "--force"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    <<: *api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Traite ProcessTransferJob / ProcessWithdrawalJob.
+  queue:
+    <<: *api
+    command: ["php", "artisan", "queue:work", "--sleep=1", "--max-time=3600"]
+    stop_grace_period: 60s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Tâches planifiées (transaction:status toutes les 15 s).
+  scheduler:
+    <<: *api
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Serveur WebSocket (notifications temps réel de l'app Flutter).
+  reverb:
+    <<: *api
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    image: digit-api-web:latest
+    build:
+      <<: *api-build
+      target: web
+    volumes:
+      - api-storage:/var/www/storage:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  dashboard:
+    image: digit-dashboard:latest
+    build:
+      context: ../digit-dashboard
+      dockerfile: ../deploy/dashboard/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN}/api
+        NEXT_PUBLIC_DOCS_URL: ${DASHBOARD_DOCS_URL:-}
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+      DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN}
+      DOCS_DOMAIN: ${DOCS_DOMAIN:-}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+      - reverb
+      - dashboard
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  api-storage:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,29 @@
+# Dépôt racine digit-service : uniquement le déploiement (deploy/) et l'environnement
+# de développement (docker-compose.yml). Chaque application a son propre dépôt.
+
+# Applications versionnées dans leurs propres dépôts GitHub, à cloner à côté de deploy/ :
+#   digit-api       -> https://github.com/fixedevelloper/digit.gateway.git
+#   digit-dashboard -> https://github.com/fixedevelloper/digitweb.git
+/digit-api/
+/digit-dashboard/
+
+# App mobile Flutter : non déployée sur le serveur (distribuée en APK/IPA).
+# À versionner dans son propre dépôt, pas ici.
+/digit_app/
+
+# Rapport d'audit : liste des failles non corrigées, ne pas publier.
+/audit.txt
+
+# Secrets et sauvegardes du déploiement (aussi couverts par deploy/.gitignore)
+.env
+*.env
+!*.env.example
+!.env.example
+/deploy/backups/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log

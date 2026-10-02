@@ -1,0 +1,83 @@
+# Environnement de développement local — pas un déploiement de production.
+# Démarrage : docker compose up
+#
+# db         : MySQL (données persistées dans le volume digit-db-data)
+# api        : API Laravel (http://localhost:8000, doc : /docs/api)
+# queue      : worker de queue (ProcessTransferJob / ProcessWithdrawalJob)
+# dashboard  : console admin Next.js (http://localhost:3000)
+#
+# Les identifiants DB_* ci-dessous sont propres à cet environnement Docker et
+# surchargent volontairement ceux du .env local (généralement configuré pour
+# un MySQL natif sur l'hôte) : les variables `environment:` d'un service ont
+# la priorité sur le fichier .env chargé par Laravel.
+
+services:
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_DATABASE: digit_gateway
+      MYSQL_USER: digit
+      MYSQL_PASSWORD: digit
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - digit-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./digit-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./digit-api:/var/www
+      - digit-api-vendor:/var/www/vendor
+    environment:
+      APP_URL: http://localhost:8000
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: digit_gateway
+      DB_USERNAME: digit
+      DB_PASSWORD: digit
+    depends_on:
+      db:
+        condition: service_healthy
+
+  queue:
+    build: ./digit-api
+    command: ["php", "artisan", "queue:work", "--tries=3"]
+    volumes:
+      - ./digit-api:/var/www
+      - digit-api-vendor:/var/www/vendor
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: digit_gateway
+      DB_USERNAME: digit
+      DB_PASSWORD: digit
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  dashboard:
+    build: ./digit-dashboard
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./digit-dashboard:/app
+      - digit-dashboard-node-modules:/app/node_modules
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+    depends_on:
+      - api
+
+volumes:
+  digit-api-vendor:
+  digit-dashboard-node-modules:
+  digit-db-data:
