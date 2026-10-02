@@ -36,10 +36,10 @@
 	reverse_proxy dashboard:3000
 }
 
-# Doc API marchande sur un sous-domaine dédié (optionnel) : décommenter et
-# renseigner DOCS_DOMAIN dans deploy/.env ET dans api.env.
-# {$DOCS_DOMAIN} {
-# 	import security_headers
-# 	encode gzip
-# 	reverse_proxy web:80
-# }
+# Doc API marchande sur un sous-domaine dédié (DOCS_DOMAIN, obligatoire dans deploy/.env).
+# Scramble y sert la doc à la racine "/" à condition que DOCS_DOMAIN soit aussi défini dans api.env.
+{$DOCS_DOMAIN} {
+	import security_headers
+	encode gzip
+	reverse_proxy web:80
+}

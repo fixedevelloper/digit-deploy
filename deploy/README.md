@@ -154,7 +154,7 @@ doivent déjà pointer vers le serveur).
 Vérifier :
 
 ```bash
-curl https://<API_DOMAIN>/up          # doit répondre 200
+curl https://api.digitagateway.com/up          # doit répondre 200
 docker compose logs -f caddy          # en cas de problème de certificat
 ```
 
@@ -175,7 +175,7 @@ docker compose exec app php artisan db:seed --class=CountrySeeder --force
 docker compose exec app php artisan tinker --execute="
 \App\Models\User::create([
     'name' => 'Administrateur',
-    'phone' => '2420XXXXXXXX',
+    'phone' => '242064449019',
     'password' => 'MOT_DE_PASSE_FORT',
     'transaction_pin' => '1234',
     'role' => 'superadmin',
@@ -207,9 +207,9 @@ https://<API_DOMAIN>/api/webhooks/digitwave
 - **App Flutter** : `digit_app/lib/config/app_config.dart` doit avoir
   `baseUrl = https://<API_DOMAIN>/api`, `reverbWHost = <API_DOMAIN>`,
   `reverbPort = 443` et `reverbKey = <REVERB_APP_KEY>`.
-- **Doc API marchande** : `https://<API_DOMAIN>/docs/api` (ou sous-domaine
-  dédié : décommenter le bloc `DOCS_DOMAIN` du `Caddyfile` et renseigner
-  `DOCS_DOMAIN` dans `.env` et `api.env`).
+- **Doc API marchande** : `https://<DOCS_DOMAIN>/` — `DOCS_DOMAIN` doit être
+  renseigné à l'identique dans `.env` (certificat HTTPS Caddy) **et** dans
+  `api.env` (routes Scramble), avec un enregistrement DNS A vers le serveur.
   ⚠️ En production, Scramble répond **403** tant qu'aucune règle d'accès
   n'est définie. Pour la rendre publique aux marchands, ajouter dans
   `AppServiceProvider::boot()` :
@@ -310,3 +310,5 @@ docker run --rm -v digit_api-storage:/data -v "$PWD/backups":/backup alpine \
 | `dashboard/Dockerfile` | Image Next.js de production. |
 
 `.env`, `api.env` et `backups/` sont ignorés par git (`deploy/.gitignore`).
+
+cd deploy && docker compose up -d --build

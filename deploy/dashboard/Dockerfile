@@ -25,6 +25,8 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
 
 RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "NEXT_PUBLIC_API_URL est requis" && exit 1)
 RUN npm run build
+RUN test -d .next/standalone \
+    || (echo 'ERREUR : .next/standalone absent. next.config.ts doit contenir output: "standalone" (modification non poussée sur le dépôt digitweb ?)' && exit 1)
 
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS runner
