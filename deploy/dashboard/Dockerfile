@@ -4,7 +4,9 @@
 # Contexte de build : ../digit-dashboard
 #
 # Les variables NEXT_PUBLIC_* sont intégrées au JavaScript AU MOMENT DU BUILD :
-# changer l'URL de l'API impose de reconstruire l'image.
+# changer l'URL de l'API impose de reconstruire l'image. Elles ne servent plus qu'aux pages
+# publiques (couverture, lien de doc) : les sessions passent par le relais /bff/* du serveur Next.js,
+# qui joint l'API via API_INTERNAL_URL (variable d'exécution, définie dans docker-compose.yml).
 
 FROM node:22-alpine AS deps
 WORKDIR /app

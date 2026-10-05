@@ -92,6 +92,38 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Sauvegardes quotidiennes (base + fichiers uploadés), test de restauration hebdomadaire,
+  # copie hors serveur optionnelle. Voir deploy/README.md § 6 et deploy/backup/backup.sh.
+  backup:
+    image: digit-backup:latest
+    build:
+      context: ./backup
+    environment:
+      DB_HOST: db
+      DB_DATABASE: ${DB_DATABASE}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      BACKUP_TIME: ${BACKUP_TIME:-02:30}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-}
+      BACKUP_RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
+      BACKUP_ALERT_WEBHOOK_URL: ${BACKUP_ALERT_WEBHOOK_URL:-}
+      BACKUP_HEARTBEAT_URL: ${BACKUP_HEARTBEAT_URL:-}
+      BACKUP_VERIFY_WEEKDAY: ${BACKUP_VERIFY_WEEKDAY-7}
+      # Configuration rclone par variables (ex. RCLONE_CONFIG_OFFSITE_TYPE=s3 …) : voir .env.example.
+      RCLONE_CONFIG_OFFSITE_TYPE: ${RCLONE_CONFIG_OFFSITE_TYPE:-}
+      RCLONE_CONFIG_OFFSITE_PROVIDER: ${RCLONE_CONFIG_OFFSITE_PROVIDER:-}
+      RCLONE_CONFIG_OFFSITE_ENDPOINT: ${RCLONE_CONFIG_OFFSITE_ENDPOINT:-}
+      RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID: ${RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY: ${RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY:-}
+    volumes:
+      - ./backups:/backups
+      # storage/app : logos, preuves de transfert, pièces KYC (lecture seule).
+      - api-storage:/storage:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   web:
     image: digit-api-web:latest
     build:
@@ -111,6 +143,12 @@ services:
       args:
         NEXT_PUBLIC_API_URL: https://${API_DOMAIN}/api
         NEXT_PUBLIC_DOCS_URL: ${DASHBOARD_DOCS_URL:-}
+    environment:
+      # Le serveur Next.js relaie les appels du navigateur vers l'API (/bff/*) et garde les jetons
+      # de session dans des cookies HttpOnly. Il joint l'API par le réseau Docker interne.
+      API_INTERNAL_URL: http://web/api
+    depends_on:
+      - web
     restart: unless-stopped
 
   caddy:
