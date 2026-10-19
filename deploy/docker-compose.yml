@@ -147,6 +147,8 @@ services:
       # Le serveur Next.js relaie les appels du navigateur vers l'API (/bff/*) et garde les jetons
       # de session dans des cookies HttpOnly. Il joint l'API par le réseau Docker interne.
       API_INTERNAL_URL: http://web/api
+      # Content-Security-Policy : enforce (défaut) | report-only (journalise sans bloquer) | off.
+      CSP_MODE: ${CSP_MODE:-enforce}
     depends_on:
       - web
     restart: unless-stopped
